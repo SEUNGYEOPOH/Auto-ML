@@ -1,30 +1,38 @@
 import streamlit as st
 import AutoRegression as AR
 import pandas as pd
-import shap as sp
-from streamlit_shap import st_shap
 import time
-
-
-
+st.set_page_config(layout="wide")
 st.set_option('deprecation.showPyplotGlobalUse', False)
 
 st.markdown("# Regression")
 st.sidebar.markdown("# Regression")
+
+if "regression_disabled" not in st.session_state:
+    st.session_state.regression_disabled = True
+
 model_list = pd.read_csv("./pages/model_list.csv",index_col=0)
 only_id = list(model_list['ID'])
 metric = pd.read_csv("./pages/metrics.csv",index_col=0)
 metrics = list(metric['ID'])
 r_data_=None
 
-r_data_ = st.file_uploader('Upload Regression Data')
+def uploader_callback():
+    if st.session_state.regression_disabled == False:
+        st.session_state.regression_disabled = True
+
+r_data_ = st.file_uploader(
+    label='regression file upload',
+    on_change=uploader_callback,
+    key='regression file_uploader'
+)
+
 
 method_box=[]
 analysis_data = None
 single_model_box=[]
 check_model = False
 setup_ready = False
-
 
     
 if r_data_ is not None:
@@ -50,8 +58,7 @@ if r_data_ is not None:
         else:
             st.write("Not Found Missing Value")
         
-        analysis_data = AR.interpolation(r_data, missing_cols,
-                                    method_box) 
+        analysis_data = AR.interpolation(r_data, missing_cols, method_box) 
         
         target_ = st.selectbox('Select Target', list(analysis_data.columns), len(analysis_data.columns)-1)
         gpu = st.radio(label = 'GPU 사용 여부', options = ['True', 'False'])
@@ -63,12 +70,6 @@ if r_data_ is not None:
         train = train/100
         target_model_arr = st.multiselect('비교할 모델들을 선정해주세요.', only_id)
         optimize_setup = st.selectbox('Optimize 기준을 정해주세요. Optimize는 Random Grid Search Algorithm을 사용합니다.', metrics)
-        btn_clicked = st.button("Confirm", key='confirm_btn')
-
-        
-        if btn_clicked:
-            con = st.container()
-            con.caption("Ready!")
 
         if st.checkbox('Show Data header'):
             st.subheader('Data header')
@@ -77,26 +78,44 @@ if r_data_ is not None:
             else:
                 st.write(r_data.head())
 
+        if st.checkbox('Show Data Describe'):
+            st.subheader('Data Describe')
+            if analysis_data is not None:
+                st.write(analysis_data.describe())
+            else:
+                st.write(r_data.describe())
+
+        btn_clicked = st.button("Confirm", key='confirm_btn')
+
+        if btn_clicked:
+            con = st.container()
+            con.caption("Ready!")
+            st.session_state.regression_disabled = False
+
 if analysis_data is not None:
     st.subheader('Data Visiaulize')
     with st.expander("Start"):      
         te_data = analysis_data.copy()
-        te_data["Time"] = te_data["Time"].str.replace("오전", "AM").str.replace("오후", "PM")
-        te_data["Time"] = pd.to_datetime(te_data["Time"], format="%p %I:%M:%S").dt.strftime("%H:%M:%S")
-        te_data["DateTime"] = pd.to_datetime(te_data["Date"] + " " + te_data["Time"])
-        te_data = te_data.drop(['Time', 'Date'], axis=1)
+        #te_data["Time"] = te_data["Time"].str.replace("오전", "AM").str.replace("오후", "PM")
+        #te_data["Time"] = pd.to_datetime(te_data["Time"], format="%p %I:%M:%S").dt.strftime("%H:%M:%S")
+        #te_data["DateTime"] = pd.to_datetime(te_data["Date"] + " " + te_data["Time"])
+        #te_data = te_data.drop(['Time', 'Date'], axis=1)
         option = st.selectbox(
             'Select Variable', 
-            (te_data.columns)
+            (te_data.columns),
+            disabled=st.session_state["regression_disabled"]
             )
-        if st.button("Show"):
-            st.line_chart(te_data.set_index("DateTime")[option])
-    
+        show = st.button("Show", disabled=st.session_state["regression_disabled"])
+        if show:
+            st.line_chart(te_data[option])
+
 if analysis_data is not None:
     st.subheader('Setup')
     with st.expander("Start"):  
         st.write('<style>div.row-widget.stRadio > div{flex-direction:row;}</style>', unsafe_allow_html=True) 
-        if st.button("Confirm", key='confirm_btn2'):
+
+        confirm = st.button("confirm", disabled=st.session_state.regression_disabled, key="confirm_btn2")
+        if confirm:
             check_model = True
         if check_model == True:
             progress_bar = st.progress(0)
@@ -119,11 +138,11 @@ try:
                 progress_bar2.progress(percent_complete2 + 1)
             single_result = AR.save_df()
             st.markdown("### Result")
-            st.write(single_result.style.highlight_max(axis=0))
-            single_visual_graph = AR.single_visual(single_result.iloc[0:10])
+            st.write(single_result.drop(['Mean', 'Std'], axis=0).style.highlight_min(axis=0))
+            single_visual_graph = AR.single_visual(single_result.drop(['Mean', 'Std'], axis=0))
             single_visual_graph = AR.save_df()
             st.markdown("### Graph")
-            st.line_chart(single_visual_graph)
+            st.line_chart(single_visual_graph.drop(['Mean', 'Std'], axis=0))
         st.subheader('Compare Model Result')
         with st.expander("Start"):
             progress_bar3 = st.progress(0)
@@ -133,7 +152,7 @@ try:
                 progress_bar3.progress(percent_complete3 + 1)
             compare_result = AR.save_df()
             st.markdown("### Compare All Models")
-            st.write(compare_result.style.highlight_max(axis=0))
+            st.write(compare_result.style.highlight_min(axis=0))
         st.subheader('Optimize Best Model')
         with st.expander("Start"):
             st.markdown("### Optimize Result")
@@ -141,7 +160,7 @@ try:
             with st.spinner("Optimize Your Model"):
                 optimize_best_model = AR.tune(best_model, optimize_setup)
                 opt_result = AR.save_df()
-                st.write(opt_result.style.highlight_max(axis=0))
+                st.write(opt_result.drop(['Mean', 'Std'], axis=0).style.highlight_min(axis=0))
         st.subheader('Predcit Result')
         with st.expander("Start"):
             pred1 = AR.prediction(single_model)
@@ -164,26 +183,6 @@ try:
             con = st.container()
             con.caption("성공적으로 저장하였습니다.")
             con.caption(" Relative path : ./pages/models/")
-            
 
-
-            
 except:
     st.write("Setup을 완료하면 자동으로 실행됩니다.")
-
-
-
-            
-            
-
-
-#     st.write("Model Load")
-#     with st.spinner("load model"):
-#         load = AR.load('pipeline')
-#         st.write(load)
-#         model_pred = AR.prediction(load)
-#         st.write(model_pred)
-    
-# elif not r_data_ and regression_flag:
-#     st.error('데이터를 넣어주세요')  
-

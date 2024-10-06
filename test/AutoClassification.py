@@ -3,10 +3,15 @@ import numpy as np
 import pycaret
 import pycaret.classification
 
-#from pycaret.classification import *
+#from pycaret.class
+#ification import *
 
-def setup(data, target, use_gpu, outliar):
+def setup(data, target, train, use_gpu, outliar):
     return pycaret.classification.setup(data, target=target, session_id=123, train_size=0.7, use_gpu=use_gpu, remove_outliers=outliar)
+
+def save_df():
+    results = pycaret.classification.pull()
+    return results
 
 def search_missing_value(data):
     import pandas as pd
@@ -23,18 +28,17 @@ def search_missing_value(data):
 def interpolation(data,target,method): #target = missing_cols
     import pandas as pd
     for i in range(len(target)):
-        data[target[i]] = data[target[i]].interpolate(method = method[i])
+        if method[i] in ['linear', 'pad','index']:
+            data[target[i]] = data[target[i]].interpolate(method = method[i])
+        else:
+            data[target[i]] = data[target[i]].interpolate(method = method[i], order=3)
     return data
 
-def save_df():
-    results = pycaret.classification.pull()
-    return results
-
-def compare(standard):
-    return pycaret.classification.compare_models(sort=standard)
+def compare(target_model_list):
+    return pycaret.classification.compare_models(include=target_model_list)
 
 def tune(model, opt):
-    return pycaret.classification.tune_model(model, optimize=opt, choose_better=True)
+    return pycaret.classification.tune_model(model, optimize=opt, n_iter=5, choose_better=True)
 
 def Blend(arr):
     arr[0]=pycaret.classification.create_model(arr[0])
@@ -47,6 +51,12 @@ def single(name):
 def single_visual(df):
     visual = df.iloc[0:9]
     return visual.plot()
+
+def plot_feature(model):
+    return pycaret.classification.plot_model(model,'feature_all',save=True)
+
+def plot_residual(model):
+    return pycaret.classification.plot_model(model,'residuals',save=True)
 
 def evaluate(model):
     return pycaret.classification.evaluate_model(model)

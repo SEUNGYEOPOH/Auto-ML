@@ -1,7 +1,6 @@
 import pandas as pd
 import numpy as np
 import pycaret.regression
-import streamlit as st
 
 def setup(data, target, train, use_gpu, outliar):
     return pycaret.regression.setup(data, target=target, session_id=123, train_size=train, use_gpu=use_gpu, remove_outliers=outliar)
@@ -21,20 +20,18 @@ def search_missing_value(data):
         else:
             missing_series = missing_series.drop(i)
     return missing_cols,missing_series
+
 def interpolation(data,target,method): #target = missing_cols
     import pandas as pd
     for i in range(len(target)):
-        if method[i] in ['linear', 'pad','index']:
-            data[target[i]] = data[target[i]].interpolate(method = method[i])
-        else:
-            data[target[i]] = data[target[i]].interpolate(method = method[i], order=3)
+        data[target[i]] = data[target[i]].interpolate(method = method[i])
     return data
 
 def compare(target_model_list):
     return pycaret.regression.compare_models(include=target_model_list)
 
 def tune(model, opt):
-    return pycaret.regression.tune_model(model, optimize=opt, n_iter=5, choose_better=True)
+    return pycaret.regression.tune_model(model, optimize=opt, choose_better=True)
 
 def Blend(arr):
     arr[0]=pycaret.regression.create_model(arr[0])
@@ -48,11 +45,8 @@ def single_visual(df):
     visual = df.iloc[0:9]
     return visual.plot()
 
-def plot_feature(model):
-    return pycaret.regression.plot_model(model,'feature_all',save=True)
-
-def plot_residual(model):
-    return pycaret.regression.plot_model(model,'residuals',save=True)
+def evaluate(model):
+    return pycaret.regression.evaluate_model(model)
 
 def shap(model):
     return pycaret.regression.interpret_model(model)
